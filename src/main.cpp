@@ -14,8 +14,7 @@ Versienummer: 1.8
 #define __DELAY_BACKWARD_COMPATIBLE__ //om variabelen aan de delay te geven
 #include <util/delay.h>
 #include "dhtxx.h"  //DHT library van : https://github.com/efthymios-ks/AVR-DHT-C
-#include <Arduino.h>
-
+#include <avr/interrupt.h> //interrupt library
 volatile int barNumber = 0; //bijhouden hoeveel bars de display heeft
 
 //deze functie speelt een geluid af op basis van hertz en tijdVanNoot
@@ -58,41 +57,43 @@ void setBarDisplay(int barNumber){
   //
 
 
-		if(barNumber == 1)
+		if(barNumber == 10)
       PORTB |= (1 << PB4);
 
-		if(barNumber == 2)
+		if(barNumber == 20)
 		  PORTB |= (1 << PB4) | (1 << PB3);
 
-		if(barNumber == 3)
+		if(barNumber == 30)
 		  PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2);
 
-		if(barNumber == 4)
+		if(barNumber == 40)
 		  PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1);
 
-		if(barNumber == 5)
+		if(barNumber == 50)
 		  PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
 
-		if(barNumber == 6){
+		if(barNumber == 60){
       PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
       PORTD |= (1 << PD7);
     }
 
-		if(barNumber == 7){
+		if(barNumber == 70){
   		PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
       PORTD |= (1 << PD7) | (1 << PD6);
       playSound(200, 1000); //succes sound
       playSound(200, 1500);
+      playSound(200, 1000);
+      playSound(200, 1500);
     }
 
-		if(barNumber == 8){ // error sound 1
+		if(barNumber == 80){ // error sound 1
       PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
       PORTD |= (1 << PD7) | (1 << PD6) | (1 << PD5);
       playSound(200, 500); //error sound 1
       playSound(200, 300);
     }
 
-		if(barNumber == 9){ //error sound 2
+		if(barNumber == 90){ //error sound 2
       PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
       PORTD |= (1 << PD7) | (1 << PD6) | (1 << PD5) | (1 << PD4);
       playSound(200, 500); //error sound 2
@@ -101,7 +102,7 @@ void setBarDisplay(int barNumber){
       playSound(200, 300);
     }
 
-		if(barNumber == 10){ //error sound heel lang
+		if(barNumber == 100){ //error sound heel lang
       PORTB |= (1 << PB4) | (1 << PB3) | (1 << PB2) | (1 << PB1) | (1 << PB0);
       PORTD |= (1 << PD7) | (1 << PD6) | (1 << PD5) | (1 << PD4) | (1 << PD3);
       playSound(200, 500); //error sound 3, het vlees begint te verbranden!
@@ -128,12 +129,12 @@ void initINT0Interrupt(void){
 }
 
 //de functie die wordt uitgevoerd bij een interrupt op INT0
+//@param is de interrupt op INT0
 ISR(INT0_vect){
   // Bij button klik zet ik de waarde van barNumber op 0
   barNumber = 0;
   PORTB = 0x00; //alles PORTB weer uit
   PORTD = 0b00000111; //alles PORTD uit behalve waar de button zit, voor het pull up register
-  Serial.println("interrupt");
   playSound(200, 1000); //succes sound
   playSound(200, 1500);
 }
@@ -145,16 +146,15 @@ int main( )
 
 	unsigned char ec; //Exit code
 	int temp, humid; //Temperature and humidity
-  float vleesGaarTemperatuur = 24; //graden waarop het vlees voor een x aantal minuten moet bakken
+  float vleesGaarTemperatuur = 21; //graden waarop het vlees voor een x aantal minuten moet bakken
   int hoeLangMoetHetVleesBakken = 180; //3 minuten lang op x graden
-  float gewensteLuchtvochtigheid = 45; //luchtvochtigheid
+  float gewensteLuchtvochtigheid = 65; //luchtvochtigheid
 
   float vleesGaarTemperatuurLow = vleesGaarTemperatuur - (0.05*vleesGaarTemperatuur); //temp mag een foutmarge hebben van 5%
   float vleesGaarTemperatuurHigh = vleesGaarTemperatuur + (0.05*vleesGaarTemperatuur);
 
   float gewensteLuchtvochtigheidLow = gewensteLuchtvochtigheid - (0.1*gewensteLuchtvochtigheid);
   float gewensteLuchtvochtigheidHigh = gewensteLuchtvochtigheid + (0.1*gewensteLuchtvochtigheid); //lucht mag een foutmarge hebben van 10%
-  Serial.begin(9600);
 
   //initialisatie port en register
    DDRB = 0xFF;     //B port register als output
@@ -167,7 +167,6 @@ int main( )
    initINT0Interrupt();
 	while( 1 )  //oneindige loop
 	{
-    Serial.println(barNumber);
 		//Request DHT sensor to give it time to prepare data
 		dhtxxconvert( DHTXX_DHT11, &PORTC, &DDRC, &PINC, ( 1 << 3 ) );
 
@@ -175,10 +174,6 @@ int main( )
 
 		//Read data from sensor to variables `temp` and `humid` (`ec` is exit code)
 		ec = dhtxxread( DHTXX_DHT11, &PORTC, &DDRC, &PINC, ( 1 << 3 ), &temp, &humid );
-    Serial.println("temperatuur is: ");
-    Serial.println( temp/10);
-    Serial.println("luchtvochtigheid is: ");
-    Serial.println(humid/10);
     switch(ec){ //switch op de EC, oftewel is het een error of een goede value
       case(0): //DHTXX_ERROR_OK oftewel geen error
         //check of de temp en luchtvochtigheid nog goed gaan
@@ -186,12 +181,14 @@ int main( )
           barNumber++; //+1 bij bar elke keer als het de goede temp en humid is
           setBarDisplay(barNumber);
         }else if(temp/10 > vleesGaarTemperatuurHigh || humid/10 > gewensteLuchtvochtigheidHigh){ // als de temp heel hoog is gaart het vlees sneller, hetzelfde met de humidity
-          barNumber =+ 3; //vlees gaat sneller garen
+          barNumber += 2; //vlees gaat sneller garen
           setBarDisplay(barNumber);
           playSound(200, 500); //alsnog een error sound, te hoge temp
           playSound(200, 300);
         }else{
-          barNumber--; //vlees is niet aan het garen
+          if(barNumber > 0){
+            barNumber--; //vlees is niet aan het garen
+          }
           setBarDisplay(barNumber);
           playSound(200, 500); //error sound
           playSound(200, 300);
